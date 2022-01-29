@@ -1,5 +1,9 @@
+import hashlib
+import json
 from abc import abstractmethod
-from typing import Dict, List, Union
+from copy import copy
+from pathlib import Path
+from typing import List, Literal, Union
 
 import numpy as np
 import pandas as pd
@@ -7,7 +11,14 @@ from category_encoders import CountEncoder, OrdinalEncoder
 from tubotubo.utils import Timer, decorate, reduce_mem_usage
 
 
-def run_blocks(input_df, blocks, test=False):
+def run_blocks(
+    input_df: pd.DataFrame,
+    blocks: list,
+    test=False,
+    new=True,
+    dataset_type: str = "train",
+    save_dir: str = "../featurestore",
+):
     out_df = pd.DataFrame()
 
     print(decorate("start run blocks..."))
@@ -15,17 +26,41 @@ def run_blocks(input_df, blocks, test=False):
     with Timer(prefix="run test={}".format(test)):
         for block in blocks:
             with Timer(prefix="\t- {}".format(str(block))):
-                if not test:
-                    out_i = block.fit(input_df)
+
+                # Get a unique path for each parameter.
+                param = block.get_init_params()
+                del param["if_exists"]
+                param = json.dumps(param)
+                param_hash = hashlib.sha224(param.encode()).hexdigest()
+                dataset_path = (
+                    Path(save_dir)
+                    / block.__class__.__name__
+                    / param_hash
+                    / f"{dataset_type}.pkl"
+                )
+
+                if new or not (dataset_path.exists()):
+                    if not test:
+                        out_i = block.fit(input_df)
+                    else:
+                        out_i = block.transform(input_df)
                 else:
-                    out_i = block.transform(input_df)
+                    with Timer(
+                        prefix="\t\t- load dataet from {}".format(str(dataset_path))
+                    ):
+                        out_i = block.load(dataset_path)
+
+                # save dataset
+                if new or not (dataset_path.exists()):
+                    block.if_exists = "replace"
+                    block.save(out_i, dataset_type=dataset_type, save_dir=save_dir)
+                else:
+                    block.save(out_i, dataset_type=dataset_type, save_dir=save_dir)
 
             assert len(input_df) == len(out_i), block
-            assert len(input_df.columns) == len(
-                set(input_df.columns)
-            ), "Duplicate column names"
             name = block.__class__.__name__
             out_df = pd.concat([out_df, out_i.add_suffix(f"@{name}")], axis=1)
+        assert len(out_df.columns) == len(set(out_df.columns)), "Duplicate column names"
         out_df = reduce_mem_usage(out_df)
     return out_df
 
@@ -35,6 +70,12 @@ class AbstractBaseBlock:
     ref: https://www.guruguru.science/competitions/16/discussions/95b7f8ec-a741-444f-933a-94c33b9e66be/ # noqa
     """
 
+    def __init__(
+        self,
+        if_exists: Literal["pass", "replace", "fail"] = "pass",
+    ):
+        self.if_exists = if_exists
+
     def fit(self, input_df: pd.DataFrame) -> pd.DataFrame:
         return self.transform(input_df)
 
@@ -42,17 +83,70 @@ class AbstractBaseBlock:
     def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError
 
+    def load(self, dataset_path) -> pd.DataFrame:
+        processed_df = pd.read_pickle(dataset_path)
+        return processed_df
+
+    def save(
+        self,
+        processed_df: pd.DataFrame,
+        dataset_type: str = "train",
+        save_dir: str = "../featurestore",
+    ) -> None:
+        param = self.get_init_params()
+        del param["if_exists"]
+        param = json.dumps(param)
+        param_hash = hashlib.sha224(param.encode()).hexdigest()
+
+        save_dir = Path(save_dir) / self.__class__.__name__ / param_hash
+        save_dir.mkdir(parents=True, exist_ok=True)
+        param_path = save_dir / "param.json"
+        dataset_path = save_dir / f"{dataset_type}.pkl"
+
+        if not (dataset_path.exists()) or (self.if_exists == "replace"):
+            self._save_param_and_dataset(param, processed_df, param_path, dataset_path)
+        elif dataset_path.exists() and (self.if_exists == "pass"):
+            pass
+        elif dataset_path.exists() and (self.if_exists == "fail"):
+            raise FileExistsError
+
+    def _save_param_and_dataset(
+        self, param, processed_df, param_path: Path, dataset_path: Path
+    ) -> None:
+        with open(param_path, "w") as f:
+            json.dump(
+                json.loads(param),
+                f,
+                ensure_ascii=False,
+                indent=4,
+                separators=(",", ": "),
+            )
+        processed_df.to_pickle(dataset_path)
+
+    def get_init_params(self) -> dict:
+        init_param_names = self.__init__.__code__.co_varnames[
+            1 : self.__init__.__code__.co_argcount
+        ]
+        instance_params = copy(self.__dict__)
+        instance_param_names = list(instance_params.keys())
+        for key in instance_param_names:
+            if key not in init_param_names:
+                del instance_params[key]
+        return instance_params
+
 
 class IdentityBlock(AbstractBaseBlock):
-    def __init__(self, cols: List[str]):
+    def __init__(self, cols: List[str], if_exists="pass"):
+        super().__init__(if_exists)
         self.cols = cols
 
     def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
         return input_df[self.cols].copy()
 
 
-class OneHotEncodingsBlock(AbstractBaseBlock):
-    def __init__(self, cols: List[str], min_count: int = 0):
+class OneHotEncodingBlock(AbstractBaseBlock):
+    def __init__(self, cols: List[str], min_count: int = 0, if_exists: str = "pass"):
+        super().__init__(if_exists)
         self.cols = cols
         self.min_count = min_count
         self.categories = {}
@@ -82,7 +176,8 @@ class OneHotEncodingsBlock(AbstractBaseBlock):
 
 
 class LabelEncodingBlock(AbstractBaseBlock):
-    def __init__(self, cols: List[str]):
+    def __init__(self, cols: List[str], if_exists: str = "pass"):
+        super().__init__(if_exists)
         self.cols = cols
         self.encoder = OrdinalEncoder(cols=cols)
 
@@ -92,14 +187,18 @@ class LabelEncodingBlock(AbstractBaseBlock):
 
     def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
         output_df = input_df[self.cols].copy()
-        output_df = self.encoder.transform(output_df)
+        output_df = self.encoder.transform(output_df).astype(int)
         return output_df
 
 
 class CountEncodingBlock(AbstractBaseBlock):
     def __init__(
-        self, cols: List[str], normalize: Union[bool, dict] = False
+        self,
+        cols: List[str],
+        normalize: Union[bool, dict] = False,
+        if_exists: str = "pass",
     ):
+        super().__init__(if_exists)
         self.cols = cols
         self.encoder = CountEncoder(cols, normalize=normalize)
 
@@ -115,8 +214,14 @@ class CountEncodingBlock(AbstractBaseBlock):
 
 class TargetEncodingBlock(AbstractBaseBlock):
     def __init__(
-        self, col: str, target_col: str, agg_func: str, cv_list: List[tuple]
+        self,
+        col: str,
+        target_col: str,
+        agg_func: str,
+        cv_list: List[tuple],
+        if_exists: str = "pass",
     ):
+        super().__init__(if_exists)
         self.col = col
         self.target_col = target_col
         self.agg_func = agg_func
@@ -142,9 +247,25 @@ class TargetEncodingBlock(AbstractBaseBlock):
         output_df[self.col_name] = input_df[self.col].map(self.group).astype(np.float)
         return output_df
 
+    def get_init_params(self) -> dict:
+        init_param_names = self.__init__.__code__.co_varnames[
+            1 : self.__init__.__code__.co_argcount
+        ]
+        instance_params = copy(self.__dict__)
+        instance_param_names = list(instance_params.keys())
+        for key in instance_param_names:
+            if key not in init_param_names:
+                del instance_params[key]
+
+        del instance_params["cv_list"]
+        return instance_params
+
 
 class AggBlock(AbstractBaseBlock):
-    def __init__(self, key: str, values: List[str], agg_funcs: List[str]):
+    def __init__(
+        self, key: str, values: List[str], agg_funcs: List[str], if_exists: str = "pass"
+    ):
+        super().__init__(if_exists)
         self.key = key
         self.values = values
         self.agg_funcs = agg_funcs

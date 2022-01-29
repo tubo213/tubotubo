@@ -1,6 +1,7 @@
 import os
 import random
 from time import time
+from typing import Callable, Dict
 
 import numpy as np
 import pandas as pd
@@ -94,7 +95,7 @@ def reduce_mem_usage(df, verbose=True):
         end_mem = df_out.memory_usage().sum() / 1024 ** 2
         num_reduction = str(100 * (start_mem - end_mem) / start_mem)
         print(
-            f"Mem. usage decreased to {str(end_mem)[:3]}Mb:  {num_reduction[:2]}% reduction" # noqa
+            f"Mem. usage decreased to {str(end_mem)[:3]}Mb:  {num_reduction[:2]}% reduction"  # noqa
         )
     return df_out
 
@@ -103,3 +104,27 @@ def seed_everything(seed: int):
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
+
+
+def threshold_search(
+    y_true: np.ndarray,
+    y_proba: np.ndarray,
+    func: Callable[[np.ndarray, np.ndarray], float],
+    is_higher_better: bool = True,
+) -> Dict[str, float]:
+    best_threshold = 0.0
+    best_score = -np.inf if is_higher_better else np.inf
+
+    for threshold in [i * 0.01 for i in range(100)]:
+        score = func(y_true=y_true, y_pred=y_proba > threshold)
+        if is_higher_better:
+            if score > best_score:
+                best_threshold = threshold
+                best_score = score
+        else:
+            if score < best_score:
+                best_threshold = threshold
+                best_score = score
+
+    search_result = {"threshold": best_threshold, "score": best_score}
+    return search_result
