@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tubotubo"
-version = "0.1.5.3"
+version = "0.1.5.4"
 description = ""
 authors = ["tubo"]
 readme = "README.md"

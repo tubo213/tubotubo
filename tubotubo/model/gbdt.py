@@ -123,7 +123,7 @@ class CatModel(GBDTModel):
         model.fit(train_ds, eval_set=[valid_ds], **self.train_params)
         return model
 
-    def predict(self, model: CatBoost.Booster, X: pd.DataFrame):
+    def predict(self, model: CatBoost, X: pd.DataFrame):
         if self.task_type == "regression":
             return model.predict(X)
         elif self.task_type == "binary":
