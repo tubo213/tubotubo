@@ -169,7 +169,7 @@ class BertBlock(AbstractBaseBlock):
         text_emb_arr[_input_df.index, :] = _text_emb_arr
 
         text_df = pd.DataFrame(text_emb_arr)
-        return text_df.add_prefix("Text_")
+        return text_df.add_prefix(f"Text_{self.text_col}")
 
     def transform(self, input_df):
         text_emb_arr = np.zeros((len(input_df), self.dim))
@@ -184,7 +184,7 @@ class BertBlock(AbstractBaseBlock):
         text_emb_arr[_input_df.index, :] = _text_emb_arr
 
         text_df = pd.DataFrame(text_emb_arr)
-        return text_df.add_prefix("Text_")
+        return text_df.add_prefix(f"Text_{self.text_col}")
 
     def get_init_params(self) -> dict:
         init_param_names = self.__init__.__code__.co_varnames[
