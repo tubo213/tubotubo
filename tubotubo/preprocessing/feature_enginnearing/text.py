@@ -143,6 +143,7 @@ class BertBlock(AbstractBaseBlock):
         random_state=3090,
         if_exists="pass",
     ):
+        super().__init__(if_exists)
         self.dim = dim
         self.text_col = text_col
         self.model = model
