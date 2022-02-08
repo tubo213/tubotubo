@@ -39,7 +39,7 @@ def run_blocks(
                     / f"{dataset_type}.pkl"
                 )
 
-                if new or not (dataset_path.exists()):
+                if new or not (dataset_path.exists()) or (block.if_exists == "replace"):
                     if not test:
                         out_i = block.fit(input_df)
                     else:
