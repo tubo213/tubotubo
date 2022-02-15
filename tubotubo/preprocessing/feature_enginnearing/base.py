@@ -189,7 +189,7 @@ class LabelEncodingBlock(AbstractBaseBlock):
 
     def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
         output_df = input_df[self.cols].copy()
-        output_df = self.encoder.transform(output_df).astype(int)
+        output_df = self.encoder.transform(output_df).astype(float)
         return output_df
 
 
