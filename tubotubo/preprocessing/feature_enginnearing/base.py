@@ -176,10 +176,12 @@ class OneHotEncodingBlock(AbstractBaseBlock):
 
 
 class LabelEncodingBlock(AbstractBaseBlock):
-    def __init__(self, cols: List[str], if_exists: str = "pass"):
+    def __init__(self, cols: List[str], handle_unknown='return_nan', handle_missing='return_nan', if_exists: str = "pass"):
         super().__init__(if_exists)
         self.cols = cols
-        self.encoder = OrdinalEncoder(cols=cols)
+        self.handle_missing = handle_missing
+        self.handle_unknown = handle_unknown
+        self.encoder = OrdinalEncoder(cols=cols, handle_unknown=handle_unknown, handle_missing=handle_missing)
 
     def fit(self, input_df: pd.DataFrame) -> pd.DataFrame:
         self.encoder.fit(input_df[self.cols])
