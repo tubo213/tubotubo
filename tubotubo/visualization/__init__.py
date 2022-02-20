@@ -155,3 +155,20 @@ def visualize_pr_curve(
     ax.set_title("Precision Recall Curve")
     ax.legend(loc="lower left")
     return fig, ax
+
+
+def visualize_train_test_distribution(
+    oof: np.array,
+    test: np.array,
+    ax: plt.Axes = None,
+    figsize: Tuple[int, int] = (5, 5),
+):
+    if ax is not None:
+        fig, ax = None, ax
+    else:
+        fig, ax = plt.subplots(figsize=figsize)
+
+    sns.distplot(oof, ax=ax, label="oof")
+    sns.distplot(test, ax=ax, color="red", label="test")
+    ax.legend()
+    return fig, ax
