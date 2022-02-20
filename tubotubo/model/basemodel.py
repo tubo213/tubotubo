@@ -1,13 +1,17 @@
 import pickle
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, List, Literal, Tuple, Union
+from typing import Any, List, Literal, Optional, Tuple, Union
 
+import japanize_matplotlib  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import shap
 from tubotubo.utils import Timer
+
+shap.initjs()
 
 
 class BaseModel:
@@ -154,3 +158,19 @@ class GBDTModel(BaseModel):
         ax.grid()
         fig.tight_layout()
         return fig, ax
+
+    def visualize_shap(
+        self, model_path: str, feat_df: pd.DataFrame, figsize: Optional[str] = None
+    ) -> Tuple[plt.Figure, plt.Axes]:
+        model = self.load(model_path)
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(feat_df)
+
+        figsize = (10, 10) if figsize is None else figsize
+        fig = plt.figure(figsize=figsize)
+        shap.summary_plot(
+            shap_values=shap_values,
+            features=feat_df,
+        )
+
+        return fig
