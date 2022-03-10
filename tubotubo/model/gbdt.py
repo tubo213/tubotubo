@@ -1,4 +1,4 @@
-from typing import List, Literal, Tuple
+from typing import List, Tuple
 
 import lightgbm as lgb
 import numpy as np
@@ -6,6 +6,7 @@ import pandas as pd
 import xgboost as xgb
 from catboost import CatBoost, Pool
 from tubotubo.model.basemodel import GBDTModel
+from typing_extensions import Literal
 
 
 class LGBMModel(GBDTModel):

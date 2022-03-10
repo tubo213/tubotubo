@@ -1,7 +1,6 @@
 import multiprocessing
 from copy import copy
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -13,6 +12,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.io import read_image
 from tqdm.notebook import tqdm
 from tubotubo.preprocessing.feature_enginnearing.base import AbstractBaseBlock
+from typing_extensions import Literal
 
 
 class CustomDataset(Dataset):

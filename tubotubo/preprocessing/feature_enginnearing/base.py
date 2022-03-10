@@ -3,12 +3,13 @@ import json
 from abc import abstractmethod
 from copy import copy
 from pathlib import Path
-from typing import List, Literal, Union
+from typing import List, Union
 
 import numpy as np
 import pandas as pd
 from category_encoders import CountEncoder, OrdinalEncoder
 from tubotubo.utils import Timer, decorate, reduce_mem_usage
+from typing_extensions import Literal
 
 
 def run_blocks(

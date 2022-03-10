@@ -1,7 +1,7 @@
 import pickle
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import japanize_matplotlib  # noqa: F401
 import matplotlib.pyplot as plt
@@ -10,6 +10,7 @@ import pandas as pd
 import seaborn as sns
 import shap
 from tubotubo.utils import Timer
+from typing_extensions import Literal
 
 shap.initjs()
 
